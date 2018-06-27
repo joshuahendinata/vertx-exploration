@@ -21,6 +21,29 @@
 				<configuration>
 					<source>${java.version}</source>
 					<target>${java.version}</target>
+
+					<useIncrementalCompilation>false</useIncrementalCompilation>
+
+					<annotationProcessors>
+						<annotationProcessor>io.vertx.codegen.CodeGenProcessor</annotationProcessor>
+					</annotationProcessors>
+					<generatedSourcesDirectory>${project.basedir}/src/main/generated</generatedSourcesDirectory>
+					<compilerArgs>
+						<arg>-AoutputDirectory=${project.basedir}/src/main</arg>
+					</compilerArgs>
+				</configuration>
+			</plugin>
+
+			<!-- Configure Maven 'clean' goal to remove the generated folder as well -->
+			<plugin>
+				<artifactId>maven-clean-plugin</artifactId>
+				<version>3.0.0</version>
+				<configuration>
+					<filesets>
+						<fileset>
+							<directory>${project.basedir}/src/main/generated</directory>
+						</fileset>
+					</filesets>
 				</configuration>
 			</plugin>
 
@@ -122,12 +145,32 @@
 			<artifactId>logback-classic</artifactId>
 			<version>1.2.3</version>
 		</dependency>
-		
+
 		<!-- https://mvnrepository.com/artifact/com.github.rjeschke/txtmark -->
 		<dependency>
 			<groupId>com.github.rjeschke</groupId>
 			<artifactId>txtmark</artifactId>
 			<version>0.13</version>
+		</dependency>
+
+		<dependency>
+			<groupId>io.vertx</groupId>
+			<artifactId>vertx-service-proxy</artifactId>
+			<version>${vertx.version}</version>
+		</dependency>
+
+		<dependency>
+			<groupId>io.vertx</groupId>
+			<artifactId>vertx-codegen</artifactId>
+			<version>${vertx.version}</version>
+			<scope>provided</scope>
+		</dependency>
+
+		<dependency>
+			<groupId>junit</groupId>
+			<artifactId>junit</artifactId>
+			<version>4.12</version>
+			<scope>test</scope>
 		</dependency>
 
 	</dependencies>

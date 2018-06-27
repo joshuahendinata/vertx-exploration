@@ -1,4 +1,6 @@
-package com.vertx_exploration.webapp;
+package com.vertxexploration.webapp;
+
+import com.vertxexploration.webapp.db.WikiDatabaseVerticle;
 
 import io.vertx.core.AbstractVerticle;
 import io.vertx.core.DeploymentOptions;
@@ -15,7 +17,7 @@ public class MainVerticle extends AbstractVerticle {
 		dbVerticleDeployment.compose(id -> {
 
 			Future<String> httpVerticleDeployment = Future.future();
-			vertx.deployVerticle("com.vertx_exploration.webapp.HttpServerVerticle", 
+			vertx.deployVerticle("com.vertxexploration.webapp.http.HttpServerVerticle", 
 					new DeploymentOptions().setInstances(2),
 					httpVerticleDeployment.completer());
 
