@@ -41,4 +41,7 @@ public interface WikiDatabaseService {
 	static WikiDatabaseService createProxy(Vertx vertx, String address) {
 		return new WikiDatabaseServiceVertxEBProxy(vertx, address);
 	}
+
+	@Fluent
+	WikiDatabaseService fetchPageById(int id, Handler<AsyncResult<JsonObject>> resultHandler);
 }

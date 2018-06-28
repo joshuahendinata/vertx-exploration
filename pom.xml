@@ -173,6 +173,12 @@
 			<scope>test</scope>
 		</dependency>
 
+		<dependency>
+			<groupId>io.vertx</groupId>
+			<artifactId>vertx-rx-java2</artifactId>
+			<version>${vertx.version}</version>
+		</dependency>
+
 	</dependencies>
 
 </project>
