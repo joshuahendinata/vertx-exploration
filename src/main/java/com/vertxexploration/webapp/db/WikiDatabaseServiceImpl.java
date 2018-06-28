@@ -4,6 +4,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.stream.Collectors;
 
+import io.reactivex.Single;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
 import io.vertx.core.Handler;
@@ -11,9 +12,10 @@ import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 import io.vertx.core.logging.Logger;
 import io.vertx.core.logging.LoggerFactory;
-import io.vertx.ext.jdbc.JDBCClient;
 import io.vertx.ext.sql.ResultSet;
-import io.vertx.ext.sql.SQLConnection;
+import io.vertx.reactivex.SingleHelper;
+import io.vertx.reactivex.ext.jdbc.JDBCClient;
+import io.vertx.reactivex.ext.sql.SQLConnection;
 
 public class WikiDatabaseServiceImpl implements WikiDatabaseService {
 	private static final Logger LOGGER = LoggerFactory.getLogger(WikiDatabaseServiceImpl.class);
@@ -26,23 +28,11 @@ public class WikiDatabaseServiceImpl implements WikiDatabaseService {
 		this.dbClient = dbClient;
 		this.sqlQueries = sqlQueries;
 
-		dbClient.getConnection(ar -> {
-			if (ar.failed()) {
-				LOGGER.error("Could not open a database connection", ar.cause());
-				readyHandler.handle(Future.failedFuture(ar.cause()));
-			} else {
-				SQLConnection connection = ar.result();
-				connection.execute(sqlQueries.get(SqlQuery.CREATE_PAGES_TABLE), create -> {
-					connection.close();
-					if (create.failed()) {
-						LOGGER.error("Database preparation error", create.cause());
-						readyHandler.handle(Future.failedFuture(create.cause()));
-					} else {
-						readyHandler.handle(Future.succeededFuture(this));
-					}
-				});
-			}
-		});
+		getConnection().flatMapCompletable(conn -> {
+			return conn.rxExecute(sqlQueries.get(SqlQuery.CREATE_PAGES_TABLE));
+		})
+		.andThen(Single.just(this))
+		.subscribe(SingleHelper.toObserver(readyHandler));
 	}
 
 	@Override
@@ -140,28 +130,36 @@ public class WikiDatabaseServiceImpl implements WikiDatabaseService {
 	
 	@Override
 	public WikiDatabaseService fetchPageById(int id, Handler<AsyncResult<JsonObject>> resultHandler) {
-		dbClient.queryWithParams(sqlQueries.get(SqlQuery.GET_PAGE_BY_ID), new JsonArray().add(id), res -> {
-			if (res.failed()) {
-				LOGGER.error("Database query error", res.cause());
-				resultHandler.handle(Future.failedFuture(res.cause()));
+		dbClient.rxQueryWithParams(sqlQueries.get(SqlQuery.GET_PAGE_BY_ID), new JsonArray().add(id))
+			.doOnError(err -> {
+				LOGGER.error("Database query error", err);
+				resultHandler.handle(Future.failedFuture(err));
 				return;
-			} 
-			
-			if (res.result().getNumRows() <= 0) {
-				resultHandler.handle(Future.succeededFuture(new JsonObject().put("found", false)));
-				return;
-			} 
-			
-			JsonObject result = res.result()
-					.getRows()
-					.get(0);
-			
-			resultHandler.handle(Future.succeededFuture(new JsonObject()
-					.put("found", true)
-					.put("id", result.getInteger("ID"))
-					.put("name", result.getString("NAME"))
-					.put("content", result.getString("CONTENT"))));
-		});
+			})
+			.subscribe(res -> {
+				
+				if (res.getNumRows() <= 0) {
+					resultHandler.handle(Future.succeededFuture(new JsonObject().put("found", false)));
+					return;
+				} 
+				
+				JsonObject result = res
+						.getRows()
+						.get(0);
+				
+				resultHandler.handle(Future.succeededFuture(new JsonObject()
+						.put("found", true)
+						.put("id", result.getInteger("ID"))
+						.put("name", result.getString("NAME"))
+						.put("content", result.getString("CONTENT"))));
+			});		
 		return this;
+	}
+	
+	private Single<SQLConnection> getConnection() {
+		return dbClient.rxGetConnection().flatMap(conn -> {
+			Single<SQLConnection> connectionSingle = Single.just(conn);
+			return connectionSingle.doFinally(conn::close); //so after finally, it will be closed
+		});
 	}
 }

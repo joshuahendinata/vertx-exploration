@@ -6,12 +6,12 @@ import java.io.InputStream;
 import java.util.HashMap;
 import java.util.Properties;
 
-import io.vertx.core.AbstractVerticle;
+import io.vertx.reactivex.core.AbstractVerticle;
 import io.vertx.core.Future;
 import io.vertx.core.json.JsonObject;
 import io.vertx.core.logging.Logger;
 import io.vertx.core.logging.LoggerFactory;
-import io.vertx.ext.jdbc.JDBCClient;
+import io.vertx.reactivex.ext.jdbc.JDBCClient;
 import io.vertx.serviceproxy.ProxyHelper;
 
 public class WikiDatabaseVerticle extends AbstractVerticle {
@@ -42,7 +42,7 @@ public class WikiDatabaseVerticle extends AbstractVerticle {
 			if (ready.succeeded()) {
 				
 				// Basically service injection like @Service in Spring
-				ProxyHelper.registerService(WikiDatabaseService.class, vertx, ready.result(), CONFIG_WIKIDB_QUEUE);
+				ProxyHelper.registerService(WikiDatabaseService.class, vertx.getDelegate(), ready.result(), CONFIG_WIKIDB_QUEUE);
 				startFuture.complete();
 			} else {
 				startFuture.fail(ready.cause());

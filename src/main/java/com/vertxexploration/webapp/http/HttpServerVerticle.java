@@ -11,6 +11,7 @@ import org.slf4j.LoggerFactory;
 import com.github.rjeschke.txtmark.Processor;
 import com.vertxexploration.webapp.db.WikiDatabaseService;
 
+import io.reactivex.Single;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
 import io.vertx.core.Handler;
@@ -147,11 +148,31 @@ public class HttpServerVerticle extends AbstractVerticle {
 		});
 	}
 	
+	// 2 authentications for benchmarking between Rx and callback. Rx is generally faster
 	private void jwtTokenGeneratorHandler(RoutingContext context) {
 		JsonObject creds = new JsonObject()
 				.put("username", context.request().getHeader("login"))
 				.put("password", context.request().getHeader("password"));
 		
+		long start = System.currentTimeMillis();
+		auth.rxAuthenticate(creds).flatMap(user -> {
+			Single<Boolean> create = user.rxIsAuthorised("create");
+			Single<Boolean> delete = user.rxIsAuthorised("delete");
+			Single<Boolean> update = user.rxIsAuthorised("update");
+
+			return Single.zip(create, delete, update, (canCreate, canDelete, canUpdate) -> {
+				return jwtAuth.generateToken(
+						new JsonObject().put("username", context.request().getHeader("login"))
+								.put("canCreate", canCreate).put("canDelete", canDelete).put("canUpdate", canUpdate),
+						new JWTOptions().setSubject("Wiki API").setIssuer("Vert.x"));
+			});
+		}).subscribe(token -> {
+			context.response().putHeader("Content-Type", "text/plain");//.end(token);
+			LOGGER.debug("rx took:" + (System.currentTimeMillis() - start) + "ms");
+		}, t -> context.fail(401));
+		
+		
+		long start2 = System.currentTimeMillis();
 		auth.authenticate(creds, authResult -> { // this is to authenticate the user id
 
 			if (authResult.succeeded()) {
@@ -168,7 +189,9 @@ public class HttpServerVerticle extends AbstractVerticle {
 											.put("canDelete", canDelete.succeeded() && canDelete.result())
 											.put("canUpdate", canUpdate.succeeded() && canUpdate.result()),
 									new JWTOptions().setSubject("Wiki API").setIssuer("Vert.x"));
-							context.response().putHeader("Content-Type", "text/plain").end(token);
+							context.response().putHeader("Content-Type", "text/plain");//.end(token);
+							LOGGER.debug("callback took:" + (System.currentTimeMillis() - start2) + "ms");
+							context.response().end(token);
 						});
 					});
 				});
