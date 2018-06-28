@@ -2,8 +2,8 @@ package com.vertxexploration.webapp.db;
 
 import java.util.HashMap;
 import java.util.List;
-import java.util.stream.Collectors;
 
+import io.reactivex.Flowable;
 import io.reactivex.Single;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
@@ -30,23 +30,17 @@ public class WikiDatabaseServiceImpl implements WikiDatabaseService {
 
 		getConnection().flatMapCompletable(conn -> {
 			return conn.rxExecute(sqlQueries.get(SqlQuery.CREATE_PAGES_TABLE));
-		})
-		.andThen(Single.just(this))
-		.subscribe(SingleHelper.toObserver(readyHandler));
+		}).andThen(Single.just(this)).subscribe(SingleHelper.toObserver(readyHandler));
 	}
 
 	@Override
 	public WikiDatabaseService fetchAllPages(Handler<AsyncResult<JsonArray>> resultHandler) {
-		dbClient.query(sqlQueries.get(SqlQuery.ALL_PAGES), res -> {
-			if (res.succeeded()) {
-				JsonArray pages = new JsonArray(res.result().getResults().stream().map(json -> json.getString(0))
-						.sorted().collect(Collectors.toList()));
-				resultHandler.handle(Future.succeededFuture(pages));
-			} else {
-				LOGGER.error("Database query error", res.cause());
-				resultHandler.handle(Future.failedFuture(res.cause()));
-			}
-		});
+		dbClient.rxQuery(sqlQueries.get(SqlQuery.ALL_PAGES))
+		.flatMapPublisher(res -> {
+			List<JsonArray> results = res.getResults();
+			return Flowable.fromIterable(results);
+		}).map(json -> json.getString(0)).sorted().collect(JsonArray::new, JsonArray::add)
+				.subscribe(SingleHelper.toObserver(resultHandler));
 		return this;
 	}
 
@@ -127,39 +121,34 @@ public class WikiDatabaseServiceImpl implements WikiDatabaseService {
 		});
 		return this;
 	}
-	
+
 	@Override
 	public WikiDatabaseService fetchPageById(int id, Handler<AsyncResult<JsonObject>> resultHandler) {
-		dbClient.rxQueryWithParams(sqlQueries.get(SqlQuery.GET_PAGE_BY_ID), new JsonArray().add(id))
-			.doOnError(err -> {
-				LOGGER.error("Database query error", err);
-				resultHandler.handle(Future.failedFuture(err));
+		dbClient.rxQueryWithParams(sqlQueries.get(SqlQuery.GET_PAGE_BY_ID), new JsonArray().add(id)).doOnError(err -> {
+			LOGGER.error("Database query error", err);
+			resultHandler.handle(Future.failedFuture(err));
+			return;
+		}).subscribe(res -> {
+
+			if (res.getNumRows() <= 0) {
+				resultHandler.handle(Future.succeededFuture(new JsonObject().put("found", false)));
 				return;
-			})
-			.subscribe(res -> {
-				
-				if (res.getNumRows() <= 0) {
-					resultHandler.handle(Future.succeededFuture(new JsonObject().put("found", false)));
-					return;
-				} 
-				
-				JsonObject result = res
-						.getRows()
-						.get(0);
-				
-				resultHandler.handle(Future.succeededFuture(new JsonObject()
-						.put("found", true)
-						.put("id", result.getInteger("ID"))
-						.put("name", result.getString("NAME"))
-						.put("content", result.getString("CONTENT"))));
-			});		
+			}
+
+			JsonObject result = res.getRows().get(0);
+
+			resultHandler.handle(
+					Future.succeededFuture(new JsonObject().put("found", true).put("id", result.getInteger("ID"))
+							.put("name", result.getString("NAME")).put("content", result.getString("CONTENT"))));
+		});
 		return this;
 	}
-	
+
 	private Single<SQLConnection> getConnection() {
 		return dbClient.rxGetConnection().flatMap(conn -> {
 			Single<SQLConnection> connectionSingle = Single.just(conn);
-			return connectionSingle.doFinally(conn::close); //so after finally, it will be closed
+			return connectionSingle.doFinally(conn::close); // so after finally,
+															// it will be closed
 		});
 	}
 }
