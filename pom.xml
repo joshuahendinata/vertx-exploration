@@ -179,6 +179,17 @@
 			<version>${vertx.version}</version>
 		</dependency>
 
+		<dependency>
+			<groupId>io.vertx</groupId>
+			<artifactId>vertx-auth-shiro</artifactId>
+			<version>${vertx.version}</version>
+		</dependency>
+
+		<dependency>
+			<groupId>io.vertx</groupId>
+			<artifactId>vertx-auth-jwt</artifactId>
+			<version>${vertx.version}</version>
+		</dependency>
 	</dependencies>
 
 </project>

@@ -16,12 +16,12 @@ public class MainVerticle extends AbstractVerticle {
 		 * dbVerticleDeployment.completer());
 		 */
 
-		Single<String> dbVerticleDeployment = vertx.rxDeployVerticle("io.vertx.guides.wiki.database.WikiDatabaseVerticle");
+		Single<String> dbVerticleDeployment = vertx.rxDeployVerticle("com.vertxexploration.webapp.db.WikiDatabaseVerticle");
 
 		dbVerticleDeployment.flatMap(id -> {
 
 			Single<String> httpVerticleDeployment = vertx.rxDeployVerticle(
-					"io.vertx.guides.wiki.http.HttpServerVerticle", new DeploymentOptions().setInstances(2));
+					"com.vertxexploration.webapp.http.HttpServerVerticle", new DeploymentOptions().setInstances(2));
 
 			return httpVerticleDeployment;
 		}).subscribe(id -> startFuture.complete(), startFuture::fail);
